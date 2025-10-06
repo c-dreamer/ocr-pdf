@@ -18,7 +18,16 @@ export const UploadZone = ({ onFileSelect, isProcessing }: UploadZoneProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/pdf': ['.pdf']
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      'image/png': ['.png'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/gif': ['.gif'],
+      'image/bmp': ['.bmp'],
+      'image/webp': ['.webp']
     },
     maxFiles: 1,
     disabled: isProcessing
@@ -49,13 +58,13 @@ export const UploadZone = ({ onFileSelect, isProcessing }: UploadZoneProps) => {
         </div>
         <div>
           <h3 className="text-xl font-semibold text-foreground mb-2">
-            {isDragActive ? 'Drop your PDF here' : 'Upload PDF Document'}
+            {isDragActive ? 'Drop your document here' : 'Upload Document'}
           </h3>
           <p className="text-muted-foreground">
-            Drag and drop your PDF file here, or click to browse
+            Drag and drop your file here, or click to browse
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            Supports text extraction and OCR for scanned documents
+            Supports PDF, DOCX, XLSX, PPTX, and images (PNG, JPG, etc.)
           </p>
         </div>
       </div>

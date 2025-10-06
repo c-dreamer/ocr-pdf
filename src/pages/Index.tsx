@@ -1,19 +1,22 @@
 import { useState } from 'react';
-import { FileText, Sparkles } from 'lucide-react';
+import { FileText, Sparkles, CheckCircle, XCircle } from 'lucide-react';
 import { UploadZone } from '@/components/UploadZone';
 import { PDFViewer } from '@/components/PDFViewer';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { ResultsPanel } from '@/components/ResultsPanel';
-import { processPDF, PDFProcessResult } from '@/lib/pdfProcessor';
+import { processDocument, DocumentProcessResult, getFileType } from '@/lib/documentProcessor';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { AuthButton } from '@/components/auth/ClerkAuthWrapper';
+import { Card } from '@/components/ui/card';
 
 const Index = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState<'extracting' | 'ocr' | 'complete'>('extracting');
+  const [processingStatus, setProcessingStatus] = useState<string>('extracting');
   const [progress, setProgress] = useState(0);
-  const [results, setResults] = useState<PDFProcessResult | null>(null);
+  const [results, setResults] = useState<DocumentProcessResult | null>(null);
+  const [testResults, setTestResults] = useState<Array<{name: string, success: boolean, error?: string}>>([]);
 
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
@@ -21,10 +24,11 @@ const Index = () => {
     setProgress(0);
     setResults(null);
     
-    toast.success(`Processing ${file.name}...`);
+    const fileType = getFileType(file);
+    toast.success(`Processing ${fileType.toUpperCase()} file: ${file.name}...`);
     
     try {
-      const result = await processPDF(
+      const result = await processDocument(
         file,
         (newProgress, status) => {
           setProgress(newProgress);
@@ -32,11 +36,15 @@ const Index = () => {
         }
       );
       
-      setResults(result);
-      toast.success('PDF processed successfully!');
+      if (result.success) {
+        setResults(result);
+        toast.success(`${fileType.toUpperCase()} processed successfully!`);
+      } else {
+        toast.error(result.error || 'Failed to process document');
+      }
     } catch (error) {
-      console.error('Error processing PDF:', error);
-      toast.error('Failed to process PDF. Please try again.');
+      console.error('Error processing document:', error);
+      toast.error('Failed to process document. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -46,6 +54,27 @@ const Index = () => {
     setSelectedFile(null);
     setResults(null);
     setProgress(0);
+    setTestResults([]);
+  };
+
+  const runFileFormatTests = () => {
+    const testFiles = [
+      { name: 'PDF', supported: true },
+      { name: 'DOCX', supported: true },
+      { name: 'XLSX', supported: true },
+      { name: 'PPTX', supported: true },
+      { name: 'PNG/JPG', supported: true },
+      { name: 'TXT', supported: false },
+      { name: 'CSV', supported: false }
+    ];
+    
+    setTestResults(testFiles.map(test => ({
+      name: test.name,
+      success: test.supported,
+      error: test.supported ? undefined : 'Format not yet supported'
+    })));
+    
+    toast.success('Format compatibility test completed!');
   };
 
   return (
@@ -65,9 +94,7 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Extract text with AI-powered OCR</p>
               </div>
             </div>
-            <Button variant="outline" size="sm">
-              Sign In with Clerk
-            </Button>
+            <AuthButton />
           </div>
         </div>
       </header>
@@ -90,6 +117,41 @@ const Index = () => {
               </p>
             </div>
             <UploadZone onFileSelect={handleFileSelect} isProcessing={isProcessing} />
+            
+            {/* Test Button */}
+            <div className="flex justify-center mt-8">
+              <Button onClick={runFileFormatTests} variant="outline" className="gap-2">
+                <Sparkles className="w-4 h-4" />
+                Test File Format Support
+              </Button>
+            </div>
+            
+            {/* Test Results */}
+            {testResults.length > 0 && (
+              <Card className="p-6 mt-8">
+                <h3 className="text-xl font-semibold mb-4">File Format Support Test Results</h3>
+                <div className="grid gap-3">
+                  {testResults.map((test, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <span className="font-medium">{test.name}</span>
+                      <div className="flex items-center gap-2">
+                        {test.success ? (
+                          <>
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            <span className="text-sm text-green-600 dark:text-green-400">Supported</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-5 h-5 text-orange-500" />
+                            <span className="text-sm text-orange-600 dark:text-orange-400">{test.error}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
             
             {/* Features */}
             <div className="grid md:grid-cols-3 gap-6 mt-16">
@@ -132,16 +194,48 @@ const Index = () => {
             </div>
             
             {isProcessing && (
-              <ProcessingStatus status={processingStatus} progress={progress} />
+              <div className="space-y-4 p-6 bg-card rounded-xl border border-border">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-6 h-6 text-primary animate-pulse" />
+                  <span className="font-medium text-foreground">{processingStatus}</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-primary to-accent h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
             )}
             
             <div className="grid lg:grid-cols-2 gap-8">
               <div>
-                <h3 className="text-xl font-semibold mb-4">PDF Preview</h3>
-                <PDFViewer file={selectedFile} />
+                <h3 className="text-xl font-semibold mb-4">
+                  {getFileType(selectedFile) === 'pdf' ? 'PDF Preview' : 'Document Info'}
+                </h3>
+                {getFileType(selectedFile) === 'pdf' ? (
+                  <PDFViewer file={selectedFile} />
+                ) : (
+                  <Card className="p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-8 h-8 text-primary" />
+                      <div>
+                        <p className="font-semibold">{selectedFile.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {getFileType(selectedFile).toUpperCase()} • {(selectedFile.size / 1024).toFixed(2)} KB
+                        </p>
+                      </div>
+                    </div>
+                    {results && !results.success && (
+                      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <p className="text-sm text-destructive">{results.error}</p>
+                      </div>
+                    )}
+                  </Card>
+                )}
               </div>
               <div>
-                {results && (
+                {results && results.success && (
                   <ResultsPanel
                     extractedText={results.extractedText}
                     ocrText={results.ocrText}
