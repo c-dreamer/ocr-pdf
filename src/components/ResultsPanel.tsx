@@ -14,6 +14,8 @@ interface ResultsPanelProps {
 
 export const ResultsPanel = ({ extractedText, ocrText, metadata, fileName }: ResultsPanelProps) => {
   const [copiedTab, setCopiedTab] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
 
   const handleCopy = (text: string, tab: string) => {
     navigator.clipboard.writeText(text);
@@ -106,6 +108,45 @@ export const ResultsPanel = ({ extractedText, ocrText, metadata, fileName }: Res
             {copiedTab === 'metadata' ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {copiedTab === 'metadata' ? 'Copied!' : 'Copy'}
           </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                setSavedId(null);
+                try {
+                  // Attempt to get Clerk user id from global if available
+                  // (A proper implementation should use Clerk React hooks server-side tokens)
+                  // Fallback to 'anonymous'
+                  // @ts-ignore
+                  const clerkUser = window?.Clerk?.user?.id || (window as any)._clerk?.user?.id || 'anonymous';
+
+                  const resp = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: clerkUser,
+                      fileName,
+                      extractedText,
+                      ocrText,
+                      metadata
+                    })
+                  });
+                  const json = await resp.json();
+                  if (json?.success) setSavedId(json.id);
+                  else throw new Error(json?.error || 'save failed');
+                } catch (err: any) {
+                  toast.error('Save failed: ' + (err?.message || err));
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? 'Saving...' : savedId ? `Saved (${savedId})` : 'Save to DB'}
+            </Button>
+          </div>
           <div className="bg-muted/50 rounded-lg p-4 max-h-96 overflow-y-auto">
             <pre className="text-sm font-mono">{JSON.stringify(metadata, null, 2)}</pre>
           </div>

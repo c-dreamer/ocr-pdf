@@ -1,5 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import { createWorker } from 'tesseract.js';
+import { createWorker, PSM } from 'tesseract.js';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
@@ -45,27 +45,63 @@ const processPDFFile = async (
     onProgress?.(20 + (40 * i / pageCount), `Extracting page ${i}/${pageCount}...`);
   }
   
+  // Improved OCR: render at higher scale, apply simple preprocessing, reuse worker lifecycle
   onProgress?.(60, 'Running OCR on first page...');
   let ocrText = '';
   try {
     const page = await pdf.getPage(1);
-    const viewport = page.getViewport({ scale: 2.0 });
+    // Render at a higher scale to improve OCR accuracy
+    const scale = 3.0; // higher scale = better OCR at cost of CPU/memory
+    const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    
+
     if (context) {
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      
+      canvas.width = Math.round(viewport.width);
+      canvas.height = Math.round(viewport.height);
+
       await page.render({
         canvasContext: context,
         viewport: viewport,
         canvas: canvas
       } as any).promise;
-      
-      const worker = await createWorker('eng');
+
+      // Simple preprocessing: convert to grayscale and increase contrast
+      try {
+        const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          // luminosity method
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          let l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          // simple contrast stretch
+          l = ((l - 128) * 1.2) + 128;
+          const v = Math.max(0, Math.min(255, l));
+          data[i] = data[i + 1] = data[i + 2] = v;
+        }
+        context.putImageData(imgData, 0, 0);
+      } catch (e) {
+        // If getImageData is blocked by CORS or other issues, ignore preprocessing
+        console.warn('Image preprocessing skipped:', e);
+      }
+
+      // Use a worker and proper lifecycle for better performance and reliability
+      const worker = await createWorker({
+        // logger: m => console.log(m), // enable for debug
+      });
+      await worker.load();
+      await worker.loadLanguage('eng');
+      await worker.initialize('eng');
+      // Set page segmentation mode to AUTO or SINGLE_BLOCK depending on use-case
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.AUTO
+      } as any);
+
+      onProgress?.(80, 'Recognizing text...');
       const { data } = await worker.recognize(canvas);
-      ocrText = data.text;
+      ocrText = data.text || '';
       await worker.terminate();
     }
   } catch (error) {
