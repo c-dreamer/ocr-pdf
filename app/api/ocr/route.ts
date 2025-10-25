@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
+import Tesseract from "tesseract.js"
+import pdfParse from "pdf-parse"
+import * as pdfjsLib from "pdfjs-dist"
 
-// Using Tesseract.js for OCR processing
-// This is a simple implementation that extracts text from images
-// For production, consider using a more robust OCR service
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,52 +14,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Convert file to base64
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/tiff", "application/pdf"]
+    if (!validTypes.includes(file.type)) {
+      return NextResponse.json({ error: "Invalid file type. Please upload an image or PDF." }, { status: 400 })
+    }
+
+    console.log("[v0] Starting OCR processing for file:", file.name)
+
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const base64 = buffer.toString("base64")
 
-    // For now, return a placeholder response
-    // In production, you would integrate with:
-    // - Tesseract.js (client-side or server-side)
-    // - Google Cloud Vision API
-    // - AWS Textract
-    // - Azure Computer Vision
-    // - Other OCR services
+    if (file.type === "application/pdf") {
+      // Extract text directly from PDF using pdf-parse
+      console.log("[v0] Processing PDF file")
+      const pdfData = await pdfParse(buffer)
+      const extractedText = pdfData.text
 
-    const mockOCRText = `
-OCR Processing Result
-====================
+      console.log("[v0] PDF text extraction completed")
 
-File: ${file.name}
-Type: ${file.type}
-Size: ${(file.size / 1024).toFixed(2)} KB
+      return NextResponse.json({
+        text: extractedText,
+        fileName: file.name,
+        fileSize: file.size,
+        confidence: 100,
+        language: "eng",
+        processingMethod: "pdf-parse",
+      })
+    } else {
+      // Use Tesseract for images
+      console.log("[v0] Processing image file with Tesseract")
+      const base64String = buffer.toString("base64")
+      const dataUrl = `data:${file.type};base64,${base64String}`
 
-[OCR Text would be extracted here]
+      const result = await Tesseract.recognize(dataUrl, "eng", {
+        logger: (m) => {
+          console.log("[v0] Tesseract progress:", m.progress)
+        },
+      })
 
-This is a placeholder response. To implement actual OCR:
+      const extractedText = result.data.text
+      const confidence = result.data.confidence
 
-1. Install Tesseract.js:
-   npm install tesseract.js
+      console.log("[v0] OCR completed. Confidence:", confidence)
 
-2. Or use a cloud service like:
-   - Google Cloud Vision API
-   - AWS Textract
-   - Azure Computer Vision
-   - Cloudinary OCR
-
-3. Update this API route to process the file and extract text.
-
-For development, you can test with sample text extraction.
-    `.trim()
-
-    return NextResponse.json({
-      text: mockOCRText,
-      fileName: file.name,
-      fileSize: file.size,
-    })
+      return NextResponse.json({
+        text: extractedText,
+        fileName: file.name,
+        fileSize: file.size,
+        confidence: confidence,
+        language: "eng",
+        processingMethod: "tesseract",
+      })
+    }
   } catch (error) {
-    console.error("OCR Error:", error)
-    return NextResponse.json({ error: "Failed to process file" }, { status: 500 })
+    console.error("[v0] OCR Error:", error)
+    return NextResponse.json(
+      { error: "Failed to process file. Please try again with a different file." },
+      { status: 500 },
+    )
   }
 }
