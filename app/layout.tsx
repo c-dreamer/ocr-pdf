@@ -1,15 +1,15 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { GeistSans } from "geist/font/sans"
-import { GeistMono } from "geist/font/mono"
+import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
-import { Toaster } from "@/components/ui/toaster"
-import { Suspense } from "react"
 import "./globals.css"
 
+const _geist = Geist({ subsets: ["latin"] })
+const _geistMono = Geist_Mono({ subsets: ["latin"] })
+
 export const metadata: Metadata = {
-  title: "OCR-PDF - Advanced Document Processing",
-  description: "Extract text from documents using multiple OCR engines",
+  title: "OCR PDF Extractor",
+  description: "Extract text from PDFs and images using advanced OCR technology",
   generator: "v0.app",
 }
 
@@ -20,11 +20,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Suspense fallback={null}>
-          {children}
-          <Toaster />
-        </Suspense>
+      <body className={`font-sans antialiased`}>
+        {children}
         <Analytics />
       </body>
     </html>
