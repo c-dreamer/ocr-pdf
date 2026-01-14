@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Tesseract from "tesseract.js"
-import pdfParse from "pdf-parse"
 import * as pdfjsLib from "pdfjs-dist"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
@@ -26,20 +25,30 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
 
     if (file.type === "application/pdf") {
-      // Extract text directly from PDF using pdf-parse
       console.log("[v0] Processing PDF file")
-      const pdfData = await pdfParse(buffer)
-      const extractedText = pdfData.text
+
+      const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(bytes) })
+      const pdfDoc = await loadingTask.promise
+
+      let extractedText = ""
+
+      // Extract text from each page
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i)
+        const textContent = await page.getTextContent()
+        const pageText = textContent.items.map((item: any) => item.str).join(" ")
+        extractedText += pageText + "\n"
+      }
 
       console.log("[v0] PDF text extraction completed")
 
       return NextResponse.json({
-        text: extractedText,
+        text: extractedText.trim(),
         fileName: file.name,
         fileSize: file.size,
         confidence: 100,
         language: "eng",
-        processingMethod: "pdf-parse",
+        processingMethod: "pdfjs-dist",
       })
     } else {
       // Use Tesseract for images
