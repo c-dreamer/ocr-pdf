@@ -190,6 +190,7 @@ def _process_pdf(
 
     result = {
         "text": "",
+        "path": None,
         "method": "none",
         "file_type": "pdf",
         "pdf_type": pdf_type,
@@ -291,6 +292,7 @@ def _process_image(
     quality = score_text(text)
     return {
         "text": text,
+        "path": None,
         "method": "tesseract",
         "quality": quality,
         "file_type": "image",

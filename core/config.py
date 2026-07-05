@@ -74,28 +74,31 @@ def _find_config_file() -> Optional[Path]:
 def _load_env_overrides(config: dict) -> dict:
     """Override config from OCR_PDF_* environment variables.
 
-    OCR_PDF_OUTPUT_DIRECTORY -> config['output']['directory']
-    OCR_PDF_QUALITY_MIN_SCORE -> config['quality']['min_score']
-    etc.
+    Handles compound keys like:
+      OCR_PDF_OUTPUT_DIRECTORY → config['output']['directory']
+      OCR_PDF_QUALITY_MIN_SCORE → config['quality']['min_score']
     """
     result = config.copy()
     for key, value in os.environ.items():
         if not key.startswith("OCR_PDF_"):
             continue
-        parts = key[8:].lower().split("_")
+        segments = key[8:].lower().split("_")
+        # Navigate as deeply as possible using longest matching prefixes,
+        # then try joining remaining segments as the terminal key.
         target = result
-        for part in parts[:-1]:
-            if part not in target:
+        for i in range(len(segments)):
+            prefix = "_".join(segments[: i + 1])
+            if prefix in target:
+                target = target[prefix]
+            else:
+                # Join remaining segments as the final key
+                remaining = "_".join(segments[i:])
+                if remaining in target:
+                    try:
+                        target[remaining] = type(target[remaining])(value)
+                    except (ValueError, TypeError):
+                        target[remaining] = value
                 break
-            target = target[part]
-        else:
-            last_key = parts[-1]
-            if last_key in target:
-                try:
-                    typed_value = type(target[last_key])(value)
-                except (ValueError, TypeError):
-                    typed_value = value
-                target[last_key] = typed_value
     return result
 
 
