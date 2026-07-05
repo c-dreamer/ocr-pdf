@@ -52,7 +52,7 @@ def create_server(config: dict[str, Any] | None = None) -> Any:
 
     mcp = FastMCP(
         "ocr-pdf",
-        description="Local-first document processing: extract text from PDFs and images, convert formats",
+        instructions="Local-first document processing: extract text from PDFs and images, convert formats",
     )
 
     @mcp.tool()
