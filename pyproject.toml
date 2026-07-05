@@ -1,0 +1,59 @@
+[project]
+name = "ocr-pdf"
+version = "0.1.0"
+description = "Local-first document processing engine: OCR, PDF↔Markdown, batch, folder watch, MCP server, Obsidian vault integration"
+authors = [{ name = "c-dreamer" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    "pymupdf>=1.25.0",
+    "ocrmypdf>=16.0.0",
+    "pytesseract>=0.3.10",
+    "Pillow>=10.0.0",
+    "watchdog>=4.0.0",
+    "pyyaml>=6.0",
+    "click>=8.0",
+    "markdown>=3.5",
+]
+
+[project.optional-dependencies]
+all = [
+    "ocr-pdf[marker]",
+    "ocr-pdf[docling]",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+marker = [
+    "marker-pdf>=1.0.0",
+]
+docling = [
+    "docling>=2.0.0",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/c-dreamer/ocr-pdf"
+Repository = "https://github.com/c-dreamer/ocr-pdf"
+
+[project.scripts]
+ocr-pdf = "cli.main:cli"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["core*", "cli*", "mcp_server*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
