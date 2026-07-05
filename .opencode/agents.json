@@ -1,0 +1,10 @@
+{
+  "agents": [
+    {
+      "name": "ocr-pdf-processor",
+      "description": "Document processing agent that can extract text from PDFs and images using ocr-pdf",
+      "skill": "../opencode-skill/SKILL.md",
+      "mcpServer": "ocr-pdf"
+    }
+  ]
+}

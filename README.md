@@ -1,213 +1,256 @@
-# OCR-PDF - Advanced Document Processing
+# OCR-PDF
 
-A powerful Next.js application for extracting text from documents using multiple OCR engines. Supports PDF, images, and various document formats with easy upload/download capabilities.
+**Local-first document processing engine.** Extract text from PDFs and images using a smart router that auto-selects the best engine — no cloud dependencies.
+
+```bash
+pip install ocr-pdf
+ocr-pdf process scan.pdf -o ./output
+```
 
 ## Features
 
-- **Multiple OCR Engines**: Tesseract.js, OCRmyPDF, PaddleOCR, and EasyOCR support
-- **Multi-Format Support**: Process PDF, PNG, JPG, TIFF, BMP, DOCX, PPTX, ODT, and TXT files
-- **Batch Processing**: Upload and process multiple files simultaneously
-- **Format Conversion**: Download results as TXT, PDF, DOCX, ODT, or PPTX
-- **Multi-Language**: Support for English, Spanish, French, German, Chinese, Japanese, and Arabic
-- **Real-time Processing**: Live status updates and progress tracking
-- **Modern UI**: Built with shadcn/ui components and Tailwind CSS
+- **Smart router** — detects digital vs. scanned PDFs, routes to PyMuPDF (fast), OCRmyPDF (accurate), or Tesseract (image fallback) automatically
+- **Quality gate** — scores output (0.0–1.0) and auto-falls back to heavier engine if quality < threshold
+- **Batch processing** — parallel `ThreadPoolExecutor` for multi-file throughput
+- **Folder watcher** — polls a directory, processes new files with SHA-256 dedup
+- **PDF↔Markdown** — convert both ways with YAML frontmatter support
+- **Obsidian writer** — writes directly into an Obsidian vault with wikilinks and frontmatter
+- **MCP server** — stdio-based [Model Context Protocol](https://modelcontextprotocol.io) server for Claude Desktop, Cursor, OpenCode, and any MCP client
+- **OpenCode skill** — agents can discover and invoke ocr-pdf natively
+- **Next.js web UI** — drag-and-drop upload and processing (existing, powered by Python core)
 
-## Tech Stack
+## Quick Install
 
-- **Framework**: Next.js 15 with App Router
-- **UI**: shadcn/ui + Tailwind CSS v4
-- **OCR**: Tesseract.js, pdf-parse
-- **Document Processing**: PDFKit, docx, pptxgenjs
-- **Storage**: Vercel Blob
-- **TypeScript**: Full type safety
+### System Dependencies
 
-## Getting Started
+```bash
+# Ubuntu / Debian
+sudo apt install tesseract-ocr tesseract-ocr-eng
 
-### Prerequisites
+# macOS
+brew install tesseract
+```
 
-- Node.js 18+ or pnpm
-- Vercel account (for Blob storage)
+### Python Package
 
-### Installation
+```bash
+# Core (CLI + library)
+pip install ocr-pdf
 
-1. Clone the repository:
-\`\`\`bash
-git clone https://github.com/yourusername/ocr-pdf.git
+# With MCP server support
+pip install "ocr-pdf[mcp]"
+
+# All extras
+pip install "ocr-pdf[all]"
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/c-dreamer/ocr-pdf.git
 cd ocr-pdf
-\`\`\`
+pip install -e .
+```
 
-2. Install dependencies:
-\`\`\`bash
-npm install
-# or
-pnpm install
-\`\`\`
+## CLI Usage
 
-3. Set up environment variables:
-\`\`\`bash
-# Create .env.local file
-BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
-\`\`\`
+```bash
+# Process a single file
+ocr-pdf process document.pdf -o ./out/
 
-4. Run the development server:
-\`\`\`bash
-npm run dev
-# or
-pnpm dev
-\`\`\`
+# Batch process all PDFs and images in a directory
+ocr-pdf batch ./input/ ./output/ --workers 4
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+# Watch a directory for new files (poll every 2s)
+ocr-pdf watch ./input/ ./output/
 
-## Usage
+# Convert between formats
+ocr-pdf convert document.pdf output.md
+ocr-pdf convert document.md output.pdf
 
-### Basic OCR Processing
+# Start the MCP server (for Claude Desktop/Cursor/OpenCode)
+ocr-pdf mcp
 
-1. **Upload Files**: Drag and drop or click to select files (PDF, images, documents)
-2. **Configure Settings**: Choose OCR engine, language, and output format
-3. **Process**: Click "Process Files" to extract text
-4. **Download**: View results and download in your preferred format
+# Verbose debug output
+ocr-pdf -v process document.pdf
+```
 
-### Supported File Types
+### Python API
 
-- **Images**: PNG, JPG, JPEG, TIFF, BMP
-- **Documents**: PDF, DOCX, PPTX, ODT, TXT
-- **Max Size**: 50MB per file
-- **Batch Limit**: 20 files at once
+```python
+from core import process_file, pdf_to_markdown, process_batch
 
-### OCR Engines
+# Single file
+result = process_file("scan.pdf", output_dir="./out")
+print(result["text"])        # extracted text
+print(result["method"])      # 'pymupdf' | 'ocrmypdf' | 'tesseract'
+print(result["quality"])     # {'overall': 0.98, 'signals': {...}}
 
-- **Tesseract.js**: Fast, browser-based OCR (default)
-- **OCRmyPDF**: Enhanced PDF text extraction
-- **PaddleOCR**: Advanced Chinese/multilingual support (requires Python backend)
-- **EasyOCR**: High-accuracy OCR (requires Python backend)
+# PDF to Markdown
+result = pdf_to_markdown("doc.pdf", output_dir="./out", frontmatter=True)
+print(result["markdown"])
 
-### Output Formats
+# Batch
+results = process_batch(["./doc1.pdf", "./doc2.png"], "./out/")
+```
 
-- **Plain Text**: Simple .txt file
-- **JSON**: Detailed OCR data with confidence scores
-- **hOCR**: HTML-based OCR format
-- **PDF**: Searchable PDF with embedded text
-- **DOCX**: Editable Microsoft Word document
-- **PPTX**: PowerPoint presentation
-- **ODT**: OpenDocument text format
+## MCP Server
 
-## API Routes
+Start the MCP server and connect any MCP client:
 
-### POST /api/upload
-Upload files to Vercel Blob storage.
+```bash
+ocr-pdf mcp
+```
 
-### POST /api/ocr/process
-Process a single file with OCR.
+### Claude Desktop
 
-\`\`\`typescript
+Add to your `claude_desktop_config.json`:
+
+```json
 {
-  "fileUrl": "https://...",
-  "fileName": "document.pdf",
-  "engine": "tesseract",
-  "language": "eng",
-  "outputFormat": "text"
+  "mcpServers": {
+    "ocr-pdf": {
+      "command": "ocr-pdf",
+      "args": ["mcp"]
+    }
+  }
 }
-\`\`\`
+```
 
-### POST /api/ocr/batch
-Process multiple files in batch.
+### Cursor
 
-### POST /api/convert
-Convert processed files to different formats.
+In Cursor Settings → MCP Servers, add:
 
-## Deployment
+```
+Name: ocr-pdf
+Type: command
+Command: ocr-pdf mcp
+```
 
-### Deploy to Vercel
+### OpenCode (Auto-Discovery)
 
-1. Push your code to GitHub
-2. Import your repository in Vercel
-3. Add environment variables:
-   - `BLOB_READ_WRITE_TOKEN`: Vercel Blob storage token
-4. Deploy
+If installed in the same environment as OpenCode, the `.opencode/mcp.json` config is picked up automatically. Otherwise add to your `opencode.json`:
 
-### GitHub Actions (Optional)
+```json
+{
+  "mcpServers": {
+    "ocr-pdf": {
+      "command": "ocr-pdf",
+      "args": ["mcp"]
+    }
+  }
+}
+```
 
-The project includes GitHub Actions workflow for CI/CD:
-- Automatic testing on push
-- Deployment to Vercel on merge to main
+### MCP Tools
 
-## Project Structure
+| Tool | Description |
+|---|---|
+| `process_document` | Extract text from a PDF or image file |
+| `process_document_bytes` | Extract text from raw bytes (upload/API) |
+| `convert_to_markdown` | Convert PDF to Markdown with optional frontmatter |
+| `batch_process` | Process all documents in a directory |
 
-\`\`\`
+## OpenCode Skill Integration
+
+ocr-pdf ships with an OpenCode skill that lets AI agents discover and use the tool without manual setup. When the skill is loaded, agents can:
+
+- Process PDFs and images on demand
+- Convert documents between formats
+- Batch process directories
+- Watch folders for new files
+
+The skill triggers on keywords like: `ocr`, `pdf`, `extract text`, `document processing`.
+
+## Architecture
+
+```
+                    ┌──────────────────────────────────┐
+                    │         Client / Agent            │
+                    │  CLI │ MCP │ Python API │ Web UI  │
+                    └──────┬──────┬──────────┬──────────┘
+                           │      │          │
+                    ┌──────▼──────▼──────────▼──────────┐
+                    │         Smart Router               │
+                    │  detect → route → extract → score  │
+                    │         → fallback if needed        │
+                    └──────┬──────┬──────────┬──────────┘
+                           │      │          │
+              ┌────────────▼──┐ ┌─▼──────┐ ┌─▼──────────┐
+              │  PyMuPDF      │ │OCRmyPDF│ │  Tesseract  │
+              │  (digital)    │ │(scanned)│ │  (images)   │
+              └───────────────┘ └────────┘ └─────────────┘
+```
+
+## File Structure
+
+```
 ocr-pdf/
-├── app/
-│   ├── api/
-│   │   ├── upload/          # File upload endpoint
-│   │   ├── ocr/
-│   │   │   ├── process/     # Single file OCR
-│   │   │   └── batch/       # Batch OCR processing
-│   │   └── convert/         # Format conversion
-│   ├── layout.tsx
-│   └── page.tsx
-├── components/
-│   ├── file-upload.tsx      # Drag-and-drop upload
-│   ├── ocr-dashboard.tsx    # Main dashboard
-│   ├── download-manager.tsx # Format conversion UI
-│   └── ui/                  # shadcn/ui components
-├── lib/
-│   ├── ocr-client.ts        # OCR API client
-│   └── utils.ts
-└── public/
-\`\`\`
+├── core/                  # Python engine
+│   ├── config.py          # YAML + env config
+│   ├── quality.py         # 5-signal quality scorer
+│   ├── router.py          # Smart routing engine
+│   ├── extractors/        # Extraction backends
+│   ├── converters/        # PDF↔MD conversion
+│   ├── obsidian.py        # Obsidian vault writer
+│   └── batch.py           # Batch + folder watcher
+├── cli/main.py            # Click CLI (5 commands)
+├── mcp_server/server.py   # FastMCP stdio server
+├── opencode-skill/        # OpenCode agent skill
+├── .opencode/mcp.json     # MCP auto-discovery
+├── app/                   # Next.js web UI
+└── pyproject.toml
+```
 
-## Authentication (Clerk Integration)
+## Configuration
 
-This project is designed to work with Clerk authentication. To integrate:
+ocr-pdf loads config from (in order):
+1. `./ocr-pdf.yaml` or `./ocr-pdf.yml`
+2. `~/.config/ocr-pdf/config.yaml`
+3. Environment variables (`OCR_PDF_*`)
+4. Defaults
 
-1. Install Clerk:
-\`\`\`bash
-npm install @clerk/nextjs
-\`\`\`
+Example `ocr-pdf.yaml`:
 
-2. Add Clerk environment variables:
-\`\`\`bash
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_key
-CLERK_SECRET_KEY=your_secret
-\`\`\`
+```yaml
+output:
+  format: md
+  directory: ./output
+  obsidian_vault: /path/to/vault
 
-3. Wrap your app with ClerkProvider in `app/layout.tsx`
+quality:
+  min_score: 0.6
+  min_word_count: 10
 
-4. Add authentication middleware in `middleware.ts`
+router:
+  fallback_to_ocr: true
 
-## Contributing
+ocr:
+  language: eng
+  dpi: 200
+```
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## Development
+
+```bash
+git clone https://github.com/c-dreamer/ocr-pdf.git
+cd ocr-pdf
+pip install -e ".[dev]"
+pip install -e ".[mcp]"    # for MCP server
+```
+
+### Test
+
+```bash
+pytest tests/
+```
+
+### Lint
+
+```bash
+ruff check .
+```
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Support
-
-For issues and questions:
-- Open an issue on GitHub
-- Contact: your-email@example.com
-
-## Roadmap
-
-- [ ] Add Python backend for full PaddleOCR/EasyOCR support
-- [ ] Implement user authentication with Clerk
-- [ ] Add document history and management
-- [ ] Support for more languages
-- [ ] Advanced PDF editing features
-- [ ] Cloud storage integration (S3, Google Drive)
-- [ ] API rate limiting and usage tracking
-- [ ] Mobile app version
-
-## Acknowledgments
-
-- Tesseract.js for browser-based OCR
-- shadcn/ui for beautiful components
-- Vercel for hosting and Blob storage
-\`\`\`
-
-```json file="" isHidden
+MIT

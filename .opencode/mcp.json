@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ocr-pdf": {
+      "description": "Local-first document processing: OCR, PDF↔Markdown, batch, folder watch",
+      "command": "ocr-pdf",
+      "args": ["mcp"]
+    }
+  }
+}
