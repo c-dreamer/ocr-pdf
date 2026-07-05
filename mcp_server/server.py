@@ -146,14 +146,15 @@ def create_server(config: dict[str, Any] | None = None) -> Any:
     def batch_process(
         input_dir: str,
         output_dir: str,
-        patterns: list[str] | None = None,
+        patterns: str | list[str] | None = None,
     ) -> dict[str, Any]:
         """Batch process all documents in a directory.
 
         Args:
             input_dir: Directory containing PDFs/images to process.
             output_dir: Directory for output .md files.
-            patterns: File patterns to match (e.g. ["*.pdf", "*.png"]).
+            patterns: File pattern(s) to match. Accepts a single pattern
+                     string or a list (e.g. "*.pdf" or ["*.pdf", "*.png"]).
                      Defaults to common document image formats.
 
         Returns:
@@ -166,8 +167,13 @@ def create_server(config: dict[str, Any] | None = None) -> Any:
 
         out_path.mkdir(parents=True, exist_ok=True)
 
+        # Normalize patterns: single string -> list
+        pattern_list: list[str] = (
+            [patterns] if isinstance(patterns, str) else (patterns or ["*.pdf", "*.png", "*.jpg", "*.jpeg", "*.tiff", "*.bmp"])
+        )
+
         files: list[Path] = []
-        for ext in patterns or ["*.pdf", "*.png", "*.jpg", "*.jpeg", "*.tiff", "*.bmp"]:
+        for ext in pattern_list:
             files.extend(in_path.glob(ext))
 
         if not files:
