@@ -11,6 +11,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrResults, setOcrResults] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [processingInfo, setProcessingInfo] = useState<{ method: string; quality: number } | null>(null)
 
   const handleFileUpload = async (file: File) => {
     if (!file.type.includes("pdf") && !file.type.includes("image")) {
@@ -36,6 +37,7 @@ export default function Home() {
 
       const data = await response.json()
       setOcrResults(data.text)
+      setProcessingInfo(data.method ? { method: data.method, quality: data.quality } : null)
       toast.success("OCR processing completed successfully")
     } catch (error) {
       console.error("Error processing file:", error)
@@ -80,14 +82,23 @@ export default function Home() {
           {/* Results Section */}
           <div>
             {ocrResults ? (
+              <>
+                {processingInfo && (
+                  <div className="mb-3 text-xs text-slate-500 flex gap-3">
+                    <span>Engine: <strong>{processingInfo.method}</strong></span>
+                    <span>Quality: <strong>{(processingInfo.quality * 100).toFixed(0)}%</strong></span>
+                  </div>
+                )}
               <OCRResults
                 text={ocrResults}
                 fileName={fileName}
                 onClear={() => {
                   setOcrResults(null)
                   setFileName(null)
+                  setProcessingInfo(null)
                 }}
               />
+              </>
             ) : (
               <Card className="p-8 bg-slate-50 border-slate-200 h-full flex items-center justify-center">
                 <div className="text-center">
